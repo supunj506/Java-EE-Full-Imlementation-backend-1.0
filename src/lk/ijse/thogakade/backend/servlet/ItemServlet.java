@@ -26,23 +26,25 @@ import java.sql.SQLException;
 public class ItemServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
-        try (Connection connection = ((BasicDataSource) getServletContext().getAttribute("cp")).getConnection()) {
-            ResultSet rst = connection.prepareStatement("select * from item").executeQuery();
-            while (rst.next()) {
-                JsonObjectBuilder jo = Json.createObjectBuilder();
-                jo.add("code", rst.getString("code"));
-                jo.add("description", rst.getString("description"));
-                jo.add("unitPrice", rst.getDouble("unitPrice"));
-                jo.add("qtyOnHand", rst.getInt("qtyOnHand"));
 
-                arrayBuilder.add(jo.build());
+            JsonArrayBuilder arrayBuilder = Json.createArrayBuilder();
+            try (Connection connection = ((BasicDataSource) getServletContext().getAttribute("cp")).getConnection()) {
+                ResultSet rst = connection.prepareStatement("select * from item").executeQuery();
+                while (rst.next()) {
+                    JsonObjectBuilder jo = Json.createObjectBuilder();
+                    jo.add("code", rst.getString("code"));
+                    jo.add("description", rst.getString("description"));
+                    jo.add("unitPrice", rst.getDouble("unitPrice"));
+                    jo.add("qtyOnHand", rst.getInt("qtyOnHand"));
+
+                    arrayBuilder.add(jo.build());
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-        resp.setContentType("application/json");
-        resp.getWriter().print(arrayBuilder.build());
+            resp.setContentType("application/json");
+            resp.getWriter().print(arrayBuilder.build());
+
     }
 
     @Override
@@ -78,10 +80,10 @@ public class ItemServlet extends HttpServlet {
         JsonObject jsonObject = Json.createReader(req.getReader()).readObject();
         try (Connection connection = ((BasicDataSource) getServletContext().getAttribute("cp")).getConnection()) {
             PreparedStatement stm = connection.prepareStatement("update item set description=?,unitPrice=?,qtyOnHand=? where code=?");
-            stm.setString(1,jsonObject.getString("description"));
-            stm.setDouble(2,Double.parseDouble(jsonObject.getString("unitPrice")));
-            stm.setInt(3,Integer.parseInt(jsonObject.getString("qtyOnHand")));
-            stm.setString(4,jsonObject.getString("code"));
+            stm.setString(1, jsonObject.getString("description"));
+            stm.setDouble(2, Double.parseDouble(jsonObject.getString("unitPrice")));
+            stm.setInt(3, Integer.parseInt(jsonObject.getString("qtyOnHand")));
+            stm.setString(4, jsonObject.getString("code"));
             stm.executeUpdate();
 
         } catch (SQLException e) {

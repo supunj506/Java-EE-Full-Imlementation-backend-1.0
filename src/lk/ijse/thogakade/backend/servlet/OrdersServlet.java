@@ -28,22 +28,48 @@ public class OrdersServlet extends HttpServlet {
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        JsonArrayBuilder array = Json.createArrayBuilder();
-        try (Connection connection = ((BasicDataSource) getServletContext().getAttribute("cp")).getConnection()) {
-            ResultSet rst = connection.prepareStatement("select * from orders").executeQuery();
-            while (rst.next()) {
-                JsonObjectBuilder jo = Json.createObjectBuilder();
-                jo.add("orderId", rst.getString("id"));
-                jo.add("orderDate", rst.getString("date"));
-                jo.add("CustomerId", rst.getString("customerId"));
-                array.add(jo.build());
-
-            }
+        try {
+            connection = ((BasicDataSource) getServletContext().getAttribute("cp")).getConnection();
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
-        resp.setContentType("application/json");
-        resp.getWriter().print(array.build());
+        if (req.getParameter("orderId") != null) {
+            JsonObjectBuilder objectBuilder = Json.createObjectBuilder();
+            String orderId = req.getParameter("orderId");
+            try {
+                PreparedStatement stm1 = connection.prepareStatement("select orders.customerId from orders where id=?");
+                stm1.setString(1, orderId);
+                ResultSet rst = stm1.executeQuery();
+                while (rst.next()) {
+                    objectBuilder.add("customerId", rst.getString("customerId"));
+                }
+                connection.close();
+                resp.setContentType("application/json");
+                resp.getWriter().print(objectBuilder.build());
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            JsonArrayBuilder array = Json.createArrayBuilder();
+            try {
+                ResultSet rst = connection.prepareStatement("select * from orders").executeQuery();
+                while (rst.next()) {
+                    JsonObjectBuilder jo = Json.createObjectBuilder();
+                    jo.add("orderId", rst.getString("id"));
+                    jo.add("orderDate", rst.getString("date"));
+                    jo.add("CustomerId", rst.getString("customerId"));
+                    array.add(jo.build());
+
+                }
+
+                connection.close();
+                resp.setContentType("application/json");
+                resp.getWriter().print(array.build());
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 
     @Override
@@ -53,13 +79,7 @@ public class OrdersServlet extends HttpServlet {
         String orderId = jsonObject.getString("orderId");
         String customerId = jsonObject.getString("customerId");
         String date = jsonObject.getString("date");
-      /*  for (int i = 0; i < itemDetails.size(); i++) {
-            JsonObject itemObject = itemDetails.getJsonObject(i);
-            System.out.println(itemObject.getString("itemCode"));
-            System.out.println(itemObject.getString("qty"));
-            System.out.println(itemObject.getString("unitPrice"));
-        }
-*/
+
         try {
             connection = ((BasicDataSource) getServletContext().getAttribute("cp")).getConnection();
 
@@ -72,13 +92,35 @@ public class OrdersServlet extends HttpServlet {
             stm.executeUpdate();
 
             PreparedStatement stm1 = connection.prepareStatement("insert into orderdetail(orderId, itemCode, qty, unitPrice) value (?,?,?,?)");
+
+            PreparedStatement stm2 = connection.prepareStatement("select item.qtyOnHand from item where code=?");
+
+            PreparedStatement stm3 = connection.prepareStatement("update item set qtyOnHand=? where code=?");
+
             for (int i = 0; i < itemDetails.size(); i++) {
+
+                String itemCode = itemDetails.getJsonObject(i).getString("itemCode");
+                int qtyOnHand = Integer.parseInt(itemDetails.getJsonObject(i).getString("qty"));
+                double unitPrice = Double.parseDouble(itemDetails.getJsonObject(i).getString("unitPrice"));
+
+
                 stm1.setString(1, orderId);
-                stm1.setString(2, itemDetails.getJsonObject(i).getString("itemCode"));
-                stm1.setInt(3, Integer.parseInt(itemDetails.getJsonObject(i).getString("qty")));
-                stm1.setDouble(4, Double.parseDouble(itemDetails.getJsonObject(i).getString("unitPrice")));
+                stm1.setString(2, itemCode);
+                stm1.setInt(3, qtyOnHand);
+                stm1.setDouble(4, unitPrice);
 
                 stm1.executeUpdate();
+
+                stm2.setString(1, itemCode);
+                ResultSet rst = stm2.executeQuery();
+                while (rst.next()) {
+                    int currentQty = rst.getInt("qtyOnHand");
+                    int updateQtyOnHand = currentQty - qtyOnHand;
+
+                    stm3.setInt(1, updateQtyOnHand);
+                    stm3.setString(2, itemCode);
+                    stm3.executeUpdate();
+                }
             }
 
             connection.commit();
@@ -102,4 +144,5 @@ public class OrdersServlet extends HttpServlet {
 
 
     }
+
 }
