@@ -72,13 +72,35 @@ public class OrdersServlet extends HttpServlet {
             stm.executeUpdate();
 
             PreparedStatement stm1 = connection.prepareStatement("insert into orderdetail(orderId, itemCode, qty, unitPrice) value (?,?,?,?)");
+
+            PreparedStatement stm2 = connection.prepareStatement("select item.qtyOnHand from item where code=?");
+
+            PreparedStatement stm3 = connection.prepareStatement("update item set qtyOnHand=? where code=?");
+
             for (int i = 0; i < itemDetails.size(); i++) {
+
+                String itemCode = itemDetails.getJsonObject(i).getString("itemCode");
+                int qtyOnHand = Integer.parseInt(itemDetails.getJsonObject(i).getString("qty"));
+                double unitPrice = Double.parseDouble(itemDetails.getJsonObject(i).getString("unitPrice"));
+
+
                 stm1.setString(1, orderId);
-                stm1.setString(2, itemDetails.getJsonObject(i).getString("itemCode"));
-                stm1.setInt(3, Integer.parseInt(itemDetails.getJsonObject(i).getString("qty")));
-                stm1.setDouble(4, Double.parseDouble(itemDetails.getJsonObject(i).getString("unitPrice")));
+                stm1.setString(2, itemCode);
+                stm1.setInt(3, qtyOnHand);
+                stm1.setDouble(4,unitPrice );
 
                 stm1.executeUpdate();
+
+                stm2.setString(1,itemCode);
+                ResultSet rst = stm2.executeQuery();
+                while (rst.next()) {
+                    int currentQty = rst.getInt("qtyOnHand");
+                    int updateQtyOnHand = currentQty - qtyOnHand;
+
+                    stm3.setInt(1,updateQtyOnHand);
+                    stm3.setString(2,itemCode);
+                    stm3.executeUpdate();
+                }
             }
 
             connection.commit();
