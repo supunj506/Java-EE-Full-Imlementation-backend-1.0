@@ -89,48 +89,66 @@ public class OrdersServlet extends HttpServlet {
             stm.setString(1, orderId);
             stm.setString(2, date);
             stm.setString(3, customerId);
-            stm.executeUpdate();
+            boolean saveOrder = stm.executeUpdate() > 0;
+            if(!saveOrder){
+                connection.rollback();
+                throw new RuntimeException("Cannot Save Order");
+            }else{
+                PreparedStatement stm1 = connection.prepareStatement("insert into orderdetail(orderId, itemCode, qty, unitPrice) value (?,?,?,?)");
 
-            PreparedStatement stm1 = connection.prepareStatement("insert into orderdetail(orderId, itemCode, qty, unitPrice) value (?,?,?,?)");
+                PreparedStatement stm2 = connection.prepareStatement("select item.qtyOnHand from item where code=?");
 
-            PreparedStatement stm2 = connection.prepareStatement("select item.qtyOnHand from item where code=?");
+                PreparedStatement stm3 = connection.prepareStatement("update item set qtyOnHand=? where code=?");
 
-            PreparedStatement stm3 = connection.prepareStatement("update item set qtyOnHand=? where code=?");
+                for (int i = 0; i < itemDetails.size(); i++) {
 
-            for (int i = 0; i < itemDetails.size(); i++) {
-
-                String itemCode = itemDetails.getJsonObject(i).getString("itemCode");
-                int qtyOnHand = Integer.parseInt(itemDetails.getJsonObject(i).getString("qty"));
-                double unitPrice = Double.parseDouble(itemDetails.getJsonObject(i).getString("unitPrice"));
+                    String itemCode = itemDetails.getJsonObject(i).getString("itemCode");
+                    int qtyOnHand = Integer.parseInt(itemDetails.getJsonObject(i).getString("qty"));
+                    double unitPrice = Double.parseDouble(itemDetails.getJsonObject(i).getString("unitPrice"));
 
 
-                stm1.setString(1, orderId);
-                stm1.setString(2, itemCode);
-                stm1.setInt(3, qtyOnHand);
-                stm1.setDouble(4, unitPrice);
+                    stm1.setString(1, orderId);
+                    stm1.setString(2, itemCode);
+                    stm1.setInt(3, qtyOnHand);
+                    stm1.setDouble(4, unitPrice);
 
-                stm1.executeUpdate();
+                    boolean saveOrderDetails = stm1.executeUpdate() > 0;
+                    if (!saveOrderDetails){
+                        connection.rollback();
+                        throw new RuntimeException("Cannot save orderDetails ");
+                    }else {
+                        stm2.setString(1, itemCode);
+                        ResultSet rst = stm2.executeQuery();
+                        while (rst.next()) {
+                            int currentQty = rst.getInt("qtyOnHand");
+                            int updateQtyOnHand = currentQty - qtyOnHand;
 
-                stm2.setString(1, itemCode);
-                ResultSet rst = stm2.executeQuery();
-                while (rst.next()) {
-                    int currentQty = rst.getInt("qtyOnHand");
-                    int updateQtyOnHand = currentQty - qtyOnHand;
+                            stm3.setInt(1, updateQtyOnHand);
+                            stm3.setString(2, itemCode);
+                            boolean updateItemQty = stm3.executeUpdate() > 0;
+                            if(!updateItemQty){
+                                connection.rollback();
+                                throw new RuntimeException("Cannot Update Item Quantity");
+                            }
+                        }
+                    }
 
-                    stm3.setInt(1, updateQtyOnHand);
-                    stm3.setString(2, itemCode);
-                    stm3.executeUpdate();
+
                 }
+
             }
 
-            connection.commit();
+
+/*            connection.commit();
             if (connection != null) {
                 try {
                     connection.rollback();
                 } catch (SQLException ex) {
                     ex.printStackTrace();
                 }
-            }
+            }*/
+            connection.commit();
+            connection.setAutoCommit(true);
 
         } catch (Exception e) {
             throw new RuntimeException(e);
